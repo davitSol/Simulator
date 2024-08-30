@@ -3,7 +3,8 @@ package dbps.dbps.controller;
 
 
 import com.fazecast.jSerialComm.SerialPort;
-import dbps.dbps.service.SerialPortManager;
+import dbps.dbps.service.LogService;
+import dbps.dbps.service.connectManager.SerialPortManager;
 import javafx.fxml.FXML;
 import javafx.scene.control.*;
 
@@ -12,13 +13,14 @@ import java.io.IOException;
 
 
 import static dbps.dbps.controller.SettingController.communicationSettingWindow;
-import static dbps.dbps.service.LogService.logService;
 
 public class CommunicationSettingController {
 
-    SerialPortManager serialPortManager = SerialPortManager.getInstance();
+    SerialPortManager serialPortManager = SerialPortManager.getManager();
 
     public static String openPortName = null;
+
+    private static LogService logService;
 
     /**
      * 시리얼
@@ -90,6 +92,9 @@ public class CommunicationSettingController {
     //초기화
     @FXML
     private void initialize() {
+        logService = LogService.getLogService();
+
+
         //delayTime 변경하면 delayTime 값 변경
 
         //토글버튼 그룹화
@@ -214,7 +219,7 @@ public class CommunicationSettingController {
             logService.updateInfoLog(response);
         }
 
-        //블루투스일때
+        //블루투스일때 - 아스키 코드
     }
 
     public void communicationSettingClose() {
