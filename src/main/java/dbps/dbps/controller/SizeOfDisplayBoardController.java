@@ -1,9 +1,7 @@
 package dbps.dbps.controller;
 
 import dbps.dbps.Simulator;
-import dbps.dbps.service.ASCiiMsgService;
-import dbps.dbps.service.HexMsgService;
-import dbps.dbps.service.LogService;
+import dbps.dbps.service.*;
 import javafx.fxml.FXML;
 import javafx.scene.control.CheckBox;
 import javafx.scene.control.ChoiceBox;
@@ -15,11 +13,9 @@ import static dbps.dbps.Constants.isAscii;
 
 public class SizeOfDisplayBoardController {
 
-    private LogService logService;
+    AsciiMsgTransceiver asciiMsgTransceiver = AsciiMsgTransceiver.getInstance();
 
-    ASCiiMsgService asciiMsgService = ASCiiMsgService.getInstance();
-
-    HexMsgService hexMsgService = HexMsgService.getInstance();
+    HexMsgTransceiver hexMsgTransceiver = HexMsgTransceiver.getInstance();
 
     @FXML
     public ChoiceBox<String> colorNum;
@@ -42,7 +38,6 @@ public class SizeOfDisplayBoardController {
 
     @FXML
     public void initialize(){
-        logService = LogService.getLogService();
         dpPane.getStylesheets().add(Simulator.class.getResource("/dbps/dbps/css/sizeOfDisplayBoard.css").toExternalForm());
 
         SpinnerValueFactory<Integer> valueFactoryForRow = new SpinnerValueFactory.IntegerSpinnerValueFactory(1, 99, 6);
@@ -99,14 +94,8 @@ public class SizeOfDisplayBoardController {
                 msg+="5";
                 break;
         }
-        String receiveMsg = asciiMsgService.sendMessages(msg);
-
-        if (!receiveMsg.equals(msg)){
-            String column = receiveMsg.substring(5, 7);
-            String row = receiveMsg.substring(7, 9);
-
-            logService.warningLog("디스플레이 사이즈 설정 실패. 가능한 디스플레이 사이즈는 "+column+"단, "+row+"열 입니다.");
-        }
+        msg+="!]";
+        asciiMsgTransceiver.sendMessages(msg);
     }
 
     private void displaySizeHEX() {
@@ -147,18 +136,7 @@ public class SizeOfDisplayBoardController {
         }
         msg+=" 10 03";
 
-        String receiveMsg = hexMsgService.sendMessages(msg);
+        hexMsgTransceiver.sendMessages(msg);
 
-        String[] splitMsg = receiveMsg.split(" ");
-
-        if (!splitMsg[6].equals("00")){
-            String columnHex = splitMsg[7];
-            String rowHex = splitMsg[8];
-
-            int column = Integer.parseInt(columnHex, 16);
-            int row = Integer.parseInt(rowHex, 16);
-
-            logService.warningLog("디스플레이 사이즈 설정 실패. 가능한 디스플레이 사이즈는 "+column+"단, "+row+"열 입니다.");
-        }
     }
 }

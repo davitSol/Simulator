@@ -3,9 +3,13 @@ package dbps.dbps.controller;
 
 import dbps.dbps.Simulator;
 import dbps.dbps.service.ASCiiMsgService;
+import dbps.dbps.service.AsciiMsgTransceiver;
 import dbps.dbps.service.HexMsgService;
+import dbps.dbps.service.HexMsgTransceiver;
 import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
+import javafx.scene.Node;
+import javafx.scene.Parent;
 import javafx.scene.Scene;
 import javafx.scene.control.ChoiceBox;
 import javafx.scene.input.MouseEvent;
@@ -19,9 +23,8 @@ import static dbps.dbps.Constants.isAscii;
 
 public class SettingController {
 
-    ASCiiMsgService ascMsgService = ASCiiMsgService.getInstance();
-    HexMsgService hexMsgService = HexMsgService.getInstance();
-
+    HexMsgTransceiver hexMsgTransceiver = HexMsgTransceiver.getInstance();
+    AsciiMsgTransceiver asciiMsgTransceiver = AsciiMsgTransceiver.getInstance(); 
     @FXML
     public ChoiceBox<String> displayBright;
 
@@ -32,26 +35,25 @@ public class SettingController {
     public void initialize(){
     }
 
-    public static Stage communicationSettingWindow;
 
+    public void communicationSettingClicked(MouseEvent mouseEvent) throws IOException {
 
-    public void communicationSettingClicked(){
-        try {
-            FXMLLoader fxmlLoader = new FXMLLoader(Simulator.class.getResource("/dbps/dbps/fxmls/communicationSetting.fxml"));
-            AnchorPane root = fxmlLoader.load();
-            communicationSettingWindow = new Stage();
-            communicationSettingWindow.setTitle("통신 설정");
+        FXMLLoader fxmlLoader = new FXMLLoader(Simulator.class.getResource("/dbps/dbps/fxmls/communicationSetting.fxml"));
+        Parent root = fxmlLoader.load();
 
-            communicationSettingWindow.initModality(Modality.APPLICATION_MODAL);
+        Stage modalStage = new Stage();
+        modalStage.setTitle("통신 설정");
 
-            Scene scene = new Scene(root, 291, 600);
-            communicationSettingWindow.setScene(scene);
-            communicationSettingWindow.setResizable(false);
+        modalStage.initModality(Modality.APPLICATION_MODAL);
 
-            communicationSettingWindow.show();
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
+        Stage parentStage = (Stage) ((Node) mouseEvent.getSource()).getScene().getWindow();
+        modalStage.initOwner(parentStage);
+
+        Scene scene = new Scene(root);
+        modalStage.setScene(scene);
+        modalStage.setResizable(false);
+
+        modalStage.showAndWait();
     }
 
     public void sendDisplayBright() {
@@ -66,11 +68,8 @@ public class SettingController {
                 case "5%": msg += "05"; break;
             }
             msg += "!]";
-            String receiveMsg = ascMsgService.sendMessages(msg);
-
-            if (receiveMsg.contains("F")){
-                System.out.println("밝기 조절에 실패했습니다.");
-            }
+            asciiMsgTransceiver.sendMessages(msg);
+            
 
         } else{
             String msg = "10 02 00 00 02 44 ";
@@ -82,13 +81,7 @@ public class SettingController {
                 case "5%": msg += "05"; break;
             }
             msg += " 10 03";
-            String receiveMsg = hexMsgService.sendMessages(msg);
-
-            String[] splitMsg = receiveMsg.split(" ");
-
-            if (!splitMsg[6].equals("00")){
-                System.out.println("밝기 조절에 실패했습니다.");
-            }
+            hexMsgTransceiver.sendMessages(msg);
         }
     }
 
@@ -102,11 +95,9 @@ public class SettingController {
                 msg += "Y";
             }
             msg += "!]";
-            String receiveMsg = ascMsgService.sendMessages(msg);
+            asciiMsgTransceiver.sendMessages(msg);
+            
 
-            if (receiveMsg.contains("F")){
-                System.out.println("실시간 문구 설정에 실패했습니다.");
-            }
         } else {
             String msg;
             if (pageMsgType.getValue().contains("동시")){
@@ -114,14 +105,7 @@ public class SettingController {
             }else{
                 msg = "21 5B 30 30 36 32 59 21 5D";
             }
-            String receiveMsg = hexMsgService.sendMessages(msg);
-
-            String[] splitMsg = receiveMsg.split(" ");
-
-            if (!splitMsg[6].equals("59")){
-                System.out.println("실시간 문구 설정에 실패했습니다.");
-            }
-
+            hexMsgTransceiver.sendMessages(msg);
         }
     }
 }
