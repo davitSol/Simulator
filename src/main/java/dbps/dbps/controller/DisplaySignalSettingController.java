@@ -1,14 +1,18 @@
 package dbps.dbps.controller;
 
-import dbps.dbps.service.connectManager.SerialPortManager;
+import dbps.dbps.service.AsciiMsgTransceiver;
+import dbps.dbps.service.DisplaySignal;
+import dbps.dbps.service.HexMsgTransceiver;
 import javafx.fxml.FXML;
 import javafx.scene.control.*;
 import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.AnchorPane;
 import javafx.stage.Stage;
 
+import static dbps.dbps.Constants.IS_ASCII;
 import static dbps.dbps.Constants.RESPONSE_LATENCY;
-import static dbps.dbps.service.displaySignal.SignalMap;
+import static dbps.dbps.service.DisplaySignal.SignalMap_ASC;
+import static dbps.dbps.service.DisplaySignal.SignalMap_HEX;
 
 public class DisplaySignalSettingController {
 
@@ -33,13 +37,11 @@ public class DisplaySignalSettingController {
     @FXML
     private Spinner<Integer> spinnerForAfter;
 
-    @FXML
-    private Button settingBtn;
+    AsciiMsgTransceiver asciiMsgTransceiver;
 
-    @FXML
-    private Button readBtn;
+    HexMsgTransceiver hexMsgTransceiver;
 
-    SerialPortManager serialPortManager = SerialPortManager.getManager();
+    DisplaySignal displaySignal;
 
     @FXML
     private void initialize() {
@@ -59,15 +61,25 @@ public class DisplaySignalSettingController {
             if (newValue.equals("08D-P64D1S21")){
                 scanOrder.getItems().clear();
                 scanOrder.getItems().addAll("138 IC", "L800", "NO IC");
+                scanOrder.setValue("138 IC");
                 scanOrder.setDisable(false);
             }else if (newValue.equals("04D-P32D2S61")){
                 scanOrder.getItems().clear();
                 scanOrder.getItems().addAll("138 IC", "595 IC", "SUM2017TD IC");
+                scanOrder.getStyleClass().add("wide-choice-box");
+                scanOrder.setValue("138 IC");
                 scanOrder.setDisable(false);
+            }
+            else {
+                scanOrder.setValue("138 IC");
+                scanOrder.setDisable(true);
             }
         });
 
         displaySignalAP.getStylesheets().add(getClass().getResource("/dbps/dbps/css/displaySignal.css").toExternalForm());
+        displaySignal = DisplaySignal.getInstance();
+        asciiMsgTransceiver = AsciiMsgTransceiver.getInstance();
+        hexMsgTransceiver = HexMsgTransceiver.getInstance();
     }
 
     //현재창 닫기
@@ -79,14 +91,77 @@ public class DisplaySignalSettingController {
 
     @FXML
     public void signalTransfer() {
+        if (IS_ASCII){
         String selectedSignal = signalList.getSelectionModel().getSelectedItem();
         String signalProtocol = makePerfectProtocol(selectedSignal);
         String transferProtocol = "!["+signalProtocol+"!]";
-        serialPortManager.sendMsgAndGetMsg(transferProtocol);
+        asciiMsgTransceiver.sendMessages(transferProtocol);
+        }
+        else {
+            String selectedSignal = signalList.getSelectionModel().getSelectedItem();
+            String signalProtocol = makePerfectProtocolHEX(selectedSignal);
+            hexMsgTransceiver.sendMessages(signalProtocol);
+        }
+    }
+
+    private String makePerfectProtocolHEX(String selectedSignal) {
+        String result = SignalMap_HEX.get(selectedSignal);
+        switch (colorScan.getValue()){
+            case "RGB":
+                result = result + " 01";
+                break;
+            case "RBG":
+                result = result + " 02";
+                break;
+            case "GRB":
+                result = result + " 03";
+                break;
+            case "GBR":
+                result = result + " 04";
+                break;
+            case "BRG":
+                result = result + " 05";
+                break;
+            case "BGR":
+                result = result + " 06";
+                break;
+            case "NC1":
+                result = result + " 07";
+                break;
+        }
+        if (selectedSignal.equals("08D-P64D1S21")) {
+            switch (scanOrder.getValue()){
+                case "138 IC":
+                    result = result + " 01";
+                    break;
+                case "595 IC":
+                    result = result + " 05";
+                    break;
+                case "SUM2017TD IC":
+                    result = result + " 06";
+                    break;
+            }
+        } else if (selectedSignal.equals("04D-P32D2S61")) {
+            switch (scanOrder.getValue()){
+                case "138 IC":
+                    result = result + " 01";
+                    break;
+                case " L800":
+                    result = result + " 02";
+                    break;
+                case "NO IC":
+                    result = result + " 03";
+                    break;
+            }
+        } else {
+            result = result + " 01";
+        }
+        result+=" 10 03";
+        return result;
     }
 
     private String makePerfectProtocol(String selectedSignal) {
-        String result = SignalMap.get(selectedSignal);
+        String result = SignalMap_ASC.get(selectedSignal);
         switch (colorScan.getValue()){
             case "RGB":
                 result = result + "1";
@@ -116,10 +191,10 @@ public class DisplaySignalSettingController {
                     result = result + "1";
                     break;
                 case "595 IC":
-                    result = result + "2";
+                    result = result + "5";
                     break;
                 case "SUM2017TD IC":
-                    result = result + "3";
+                    result = result + "6";
                     break;
             }
         } else if (selectedSignal.equals("04D-P32D2S61")) {
@@ -144,33 +219,53 @@ public class DisplaySignalSettingController {
     public void autoTransfer() {
         Integer time = spinnerForSec.getValue();
         int originalTime = RESPONSE_LATENCY;
-        RESPONSE_LATENCY = time;
-        signalList.getItems().forEach(signal -> {
-            String signalProtocol = SignalMap.get(signal);
-            signalList.getSelectionModel().select(signal);
-            String transferProtocol = "!["+signalProtocol+"!]";
-            serialPortManager.sendMsgAndGetMsg(transferProtocol);
-            try {
-                Thread.sleep(time * 1000);
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
-        });
-
+        if (IS_ASCII){
+            RESPONSE_LATENCY = time;
+            signalList.getItems().forEach(signal -> {
+                String signalProtocol = SignalMap_ASC.get(signal);
+                signalList.getSelectionModel().select(signal);
+                String transferProtocol = "!["+makePerfectProtocol(signalProtocol)+"!]";
+                asciiMsgTransceiver.sendMessages(transferProtocol);
+                try {
+                    Thread.sleep(time * 1000);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+            });
+        }
+        else {
+            RESPONSE_LATENCY = time;
+            signalList.getItems().forEach(signal -> {
+                String signalProtocol = SignalMap_HEX.get(signal);
+                signalList.getSelectionModel().select(signal);
+                String transferProtocol = makePerfectProtocolHEX(signalProtocol);
+                hexMsgTransceiver.sendMessages(transferProtocol);
+                try {
+                    Thread.sleep(time * 1000);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+            });
+        }
         RESPONSE_LATENCY = originalTime;
     }
 
     @FXML
-    public void setting(MouseEvent mouseEvent) {
+    public void setting() {
+        Integer before = spinnerForBefore.getValue();
+        Integer after = spinnerForAfter.getValue();
 
+        String msg = "![00B4"+before+" "+after+"!]";
+
+        asciiMsgTransceiver.sendMessages(msg);
     }
 
     @FXML
-    public void read(MouseEvent mouseEvent) {
-
+    public void read() {
+        asciiMsgTransceiver.sendMessages("![00B50!]");
     }
 
     public void save(MouseEvent mouseEvent) {
-
+        //현재내용 저장.
     }
 }
