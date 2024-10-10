@@ -1,13 +1,16 @@
 package dbps.dbps.service;
 
 import dbps.dbps.service.connectManager.*;
+import javafx.concurrent.Task;
 
 
+import java.nio.charset.Charset;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Locale;
+import java.util.concurrent.ExecutionException;
 
-import static dbps.dbps.Constants.CONNECT_TYPE;
+import static dbps.dbps.Constants.*;
 
 public class HexMsgTransceiver {
 
@@ -32,26 +35,63 @@ public class HexMsgTransceiver {
         return instance;
     }
 
-    public String sendMessages(String msg) {
+    public String sendByteMessages(byte[] msg) {
         String receivedMsg = "";
 
         //로그 출력
-        logService.updateInfoLog("전송 메세지: " + msg);
+        logService.updateInfoLog("전송 메세지: " + bytesToHex(msg, msg.length));
 
         switch (CONNECT_TYPE) {
-            case "serial", "bluetooth", "rs485" -> //시리얼 및 블루투스
-            receivedMsg = serialPortManager.sendMsgAndGetMsgHex(msg);
+            case "serial", "bluetooth", "rs485" -> {
+                try {
+                    // Task 객체를 생성하여 비동기 작업 실행
+                    Task<String> sendTask = serialPortManager.sendMsgAndGetMsgByte(msg);
+
+                    // 새로운 스레드에서 Task를 실행
+                    Thread taskThread = new Thread(sendTask);
+                    taskThread.start();
+
+                    // Task의 완료를 기다리고 결과를 동기적으로 가져오기
+                    receivedMsg = sendTask.get(); // get() 메서드는 Task 완료까지 대기함
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }
             case "UDP" -> //udp로 메세지 전송
-                    receivedMsg = udpManager.sendMsgAndGetMsgHex(msg);
+            {
+                try {
+                    Task<String> sendTask = udpManager.sendMsgAndGetMsgByte(msg);
+                    Thread taskThread = new Thread(sendTask);
+                    taskThread.start();
+
+                    receivedMsg = sendTask.get();
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
+            }
             case "TCP" -> //tcp로 메세지 전송
-                receivedMsg = tcpManager.sendMsgAndGetMsgHex(msg);
+            {
+                try {
+                    Task<String> sendTask = tcpManager.sendMsgAndGetMsgByte(msg);
+                    Thread taskThread = new Thread(sendTask);
+                    taskThread.start();
+
+                    receivedMsg = sendTask.get();
+                }catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
+            }
         }
 
         //시간 바꾸거나, 펌웨어 같은 일부 특수한 경우에 반환값 사용.
         return msgReceive(receivedMsg, msg);
     }
 
-    private String msgReceive(String receiveMsg, String msg) {
+    public String sendMessages(String msg) {
+        return sendByteMessages(hexStringToByteArray(msg));
+    }
+
+    private String msgReceive(String receiveMsg, byte[] msg) {
         if (receiveMsg==null) {
             return null;
         }
@@ -75,7 +115,7 @@ public class HexMsgTransceiver {
         return chkSpecificCmdCode(receiveMsg, msg);
     }
 
-    public String chkSpecificCmdCode(String receiveMsg, String msg) {
+    public String chkSpecificCmdCode(String receiveMsg, byte[] msg) {
         String[] splitMsg = receiveMsg.split(" ");
         String command = splitMsg[5];
         String status = splitMsg[6];
@@ -83,13 +123,18 @@ public class HexMsgTransceiver {
         switch (command) {
             case "40" -> handleScreenSizeSetting(splitMsg, msg);
             case "66" -> handleTimeRead(receiveMsg, splitMsg);
-            default -> handleDefaultCommands(command, status, receiveMsg, splitMsg);
+            case "6F" -> {
+                return receiveMsg;
+            }
+
+            default -> handleDefaultCommands(status, receiveMsg, splitMsg);
         }
         return receiveMsg;
     }
 
-    private void handleScreenSizeSetting(String[] splitMsg, String msg) {
-        if (!splitMsg[7].equals(msg.split(" ")[7]) || !splitMsg[8].equals(msg.split(" ")[8])) {
+
+    private void handleScreenSizeSetting(String[] splitMsg, byte[] msg) {
+        if (!splitMsg[7].equals(String.format("%02X", msg[7])) || !splitMsg[8].equals(String.format("%02X", msg[8]))) {
             logService.warningLog("화면 크기 설정에 실패했습니다.");
             logService.warningLog(splitMsg[7] + "단, " + splitMsg[8] + "열까지만 가능합니다.");
         } else {
@@ -121,27 +166,13 @@ public class HexMsgTransceiver {
         }
     }
 
-    private void handleDefaultCommands(String command, String status, String receiveMsg, String[] splitMsg) {
+    private void handleDefaultCommands(String status, String receiveMsg, String[] splitMsg) {
         // 단순 상태 코드 확인 및 로그 출력
         if (status.equals("00")) {
             logService.updateInfoLog("받은 메세지 : " + receiveMsg); // 받은 메세지 출력
         } else {
             chkErrorCode(receiveMsg, splitMsg);
         }
-    }
-
-    private String getSuccessMessage(String command) {
-        return switch (command) {
-            case "4C" -> "페이지 메세지 개수 등록에 성공했습니다.";
-            case "4B" -> "페이지 메모리 전체 삭제에 성공했습니다.";
-            case "4A" -> "하드 리셋에 성공했습니다.";
-            case "41" -> "화면 on/off에 성공했습니다.";
-            case "4F" -> "배경이미지 호출에 성공했습니다.";
-            case "44" -> "화면 밝기 조절에 성공했습니다.";
-            case "47" -> "시간 동기화에 성공했습니다.";
-            case "42" -> "화면 단일색으로 채우기에 성공했습니다.";
-            default -> null;
-        };
     }
 
     private void chkErrorCode(String receiveMsg, String[] splitMsg) {

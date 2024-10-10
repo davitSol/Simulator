@@ -4,8 +4,10 @@ package dbps.dbps.controller;
 import dbps.dbps.Simulator;
 import dbps.dbps.service.ASCiiMsgService;
 import dbps.dbps.service.AsciiMsgTransceiver;
+import dbps.dbps.service.ConfigService;
 import javafx.event.Event;
 import javafx.fxml.FXML;
+import javafx.fxml.FXMLLoader;
 import javafx.scene.control.Button;
 import javafx.scene.control.TextField;
 import javafx.scene.input.KeyCode;
@@ -16,6 +18,9 @@ import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Queue;
+
+import static dbps.dbps.Constants.SIZE_COLUMN;
+import static dbps.dbps.Constants.SIZE_ROW;
 
 public class ASCiiMsgController {
 
@@ -36,6 +41,7 @@ public class ASCiiMsgController {
 
     ASCiiMsgService msgService = ASCiiMsgService.getInstance();
     AsciiMsgTransceiver asciiMsgTransceiver = AsciiMsgTransceiver.getInstance();
+    ConfigService configService = ConfigService.getInstance();
     public static List<TextField> transmitMsgs = new ArrayList<>();
     private List<Button> msgSaveBtns = new ArrayList<>();
     private List<Button> msgSendBtns = new ArrayList<>();
@@ -127,12 +133,39 @@ public class ASCiiMsgController {
     }
 
     @FXML
-    public void makeOwnMsg(){
+    public void setDefault(){
         msgService.makeOwnMsg();
     }
 
     @FXML
     public void preview(MouseEvent event) {
+        Button clickedBtn = (Button) event.getSource();
+        int num = Integer.parseInt(clickedBtn.getId().substring(10));
+        TextField targetTextField = transmitMsgs.get(num - 1);
+        //구현 계획
+        //기본표시 설정 창에서 먼저 가져오고 추가된 값 있으면 기존값에서 갈아끼움.
+
+        String textSize = "16";
+        String fontGroup = "1";
+        String effectIn = "정지효과";
+        String effectInDirection = "효과방향";
+        String effectOut = "정지효과";
+        String effectOutDirection = "효과방향";
+        String effectTime = "15";
+        String xStart = "00";
+        String xEnd = "00";
+        String yStart = "00";
+        String yEnd = "00";
+        String textColor = "Yellow";
+        String bgColor = "Black";
+
+
+        //화면설정 크기에서 가져와서 크기 만들고.
+
+        //그렇게 메세지 완성된거 기준으로 미리보기 띄우면 됨.
+
+        //한픽셀 = 10
+
         msgService.preview(event, transmitMsgs);
     }
 

@@ -1,8 +1,11 @@
 package dbps.dbps.service;
 
 import dbps.dbps.service.connectManager.*;
+import javafx.concurrent.Task;
+
 import java.text.SimpleDateFormat;
 import java.util.Date;
+import java.util.concurrent.ExecutionException;
 
 import static dbps.dbps.Constants.CONNECT_TYPE;
 
@@ -39,12 +42,45 @@ public class AsciiMsgTransceiver {
                 logService.errorLog("연결된 장치가 없습니다.");
                 return null;
             }
-            case "serial", "bluetooth","rs485" -> //시리얼 및 블루투스
-                    receivedMsg = serialPortManager.sendMsgAndGetMsg(msg);
+            case "serial", "bluetooth", "rs485" -> {
+                try {
+                    // Task 객체를 생성하여 비동기 작업 실행
+                    Task<String> sendTask = serialPortManager.sendMsgAndGetMsg(msg);
+
+                    // 새로운 스레드에서 Task를 실행
+                    Thread taskThread = new Thread(sendTask);
+                    taskThread.start();
+
+                    // Task의 완료를 기다리고 결과를 동기적으로 가져오기
+                    receivedMsg = sendTask.get(); // get() 메서드는 Task 완료까지 대기함
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }
             case "UDP" -> //udp로 메세지 전송
-                    receivedMsg = udpManager.sendASCMsg(msg);
+            {
+                try {
+                    Task<String> sendTask = udpManager.sendASCMsg(msg);
+                    Thread taskThread = new Thread(sendTask);
+                    taskThread.start();
+
+                    receivedMsg = sendTask.get();
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
+            }
             case "TCP" -> //tcp로 메세지 전송
-                    receivedMsg = tcpManager.sendASCMsg(msg);
+            {
+                try {
+                    Task<String> sendTask = tcpManager.sendASCMsg(msg);
+                    Thread taskThread = new Thread(sendTask);
+                    taskThread.start();
+
+                    receivedMsg = sendTask.get();
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
+            }
         }
         logService.updateInfoLog("전송 메세지: " + msg);
 
@@ -111,6 +147,20 @@ public class AsciiMsgTransceiver {
 
             return time;
         }
+        if (cmd.equals("81")){
+            logService.updateInfoLog("펌웨어 버전 : " + receiveMsg);
+            return receiveMsg;
+        }
+        if (cmd.equals("B3")){
+            //보드기능 읽기
+            logService.updateInfoLog("받은 메세지 : " + receiveMsg);
+            return receiveMsg;
+        }
+        if (cmd.equals("B2")){
+            //보드기능 설정
+            logService.updateInfoLog("받은 메세지 : " + receiveMsg);
+            return receiveMsg;
+        }
 
         if (status == '0') { // 정상 처리
             if (cmd.equals("83")) { // 맥주소 읽기
@@ -157,7 +207,6 @@ public class AsciiMsgTransceiver {
             }
             if (cmd.equals("52")){
                 logService.updateInfoLog("받은 메세지 : " + receiveMsg);
-                logService.updateInfoLog("표출신호 설정에 성공했습니다.");
             }
             if (cmd.equals("54")){
                 logService.updateInfoLog("받은 메세지 : " + receiveMsg);

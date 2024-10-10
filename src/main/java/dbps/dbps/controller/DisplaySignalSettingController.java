@@ -3,11 +3,14 @@ package dbps.dbps.controller;
 import dbps.dbps.service.AsciiMsgTransceiver;
 import dbps.dbps.service.DisplaySignal;
 import dbps.dbps.service.HexMsgTransceiver;
+import javafx.animation.KeyFrame;
+import javafx.animation.Timeline;
 import javafx.fxml.FXML;
 import javafx.scene.control.*;
 import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.AnchorPane;
 import javafx.stage.Stage;
+import javafx.util.Duration;
 
 import static dbps.dbps.Constants.IS_ASCII;
 import static dbps.dbps.Constants.RESPONSE_LATENCY;
@@ -37,11 +40,16 @@ public class DisplaySignalSettingController {
     @FXML
     private Spinner<Integer> spinnerForAfter;
 
+    @FXML
+    private Button autoTransfer;
+
     AsciiMsgTransceiver asciiMsgTransceiver;
 
     HexMsgTransceiver hexMsgTransceiver;
 
     DisplaySignal displaySignal;
+
+    private Timeline timeline;
 
     @FXML
     private void initialize() {
@@ -217,37 +225,41 @@ public class DisplaySignalSettingController {
 
     @FXML
     public void autoTransfer() {
-        Integer time = spinnerForSec.getValue();
+        if(autoTransfer.getText().equals("해제")){
+            timeline.stop(); // Timeline 중지
+            timeline = null; // 객체 초기화
+            autoTransfer.setText("자동 전송"); // 버튼 텍스트를 원래대로 변경
+            return; // 함수 종료
+        }
+        int signalCount = signalList.getItems().size();
+        Integer time = spinnerForSec.getValue(); // 지연 시간을 가져옴 (초 단위)
         int originalTime = RESPONSE_LATENCY;
-        if (IS_ASCII){
-            RESPONSE_LATENCY = time;
-            signalList.getItems().forEach(signal -> {
-                String signalProtocol = SignalMap_ASC.get(signal);
-                signalList.getSelectionModel().select(signal);
-                String transferProtocol = "!["+makePerfectProtocol(signalProtocol)+"!]";
-                asciiMsgTransceiver.sendMessages(transferProtocol);
-                try {
-                    Thread.sleep(time * 1000);
-                } catch (InterruptedException e) {
-                    e.printStackTrace();
-                }
+        RESPONSE_LATENCY = time;
+        int startIdx = signalList.getSelectionModel().getSelectedIndex();
+        System.out.println("startIdx = " + startIdx);
+        timeline = new Timeline();
+        timeline.setCycleCount(signalCount); // 각 신호에 대해 반복
+
+        for (int i = startIdx; i < signalCount; i++) {
+            int index = i; // 람다식 내부에서 사용될 인덱스
+            KeyFrame keyFrame = new KeyFrame(Duration.seconds(i * time), event -> {
+                // 신호를 선택하여 UI에 반영
+                signalList.getSelectionModel().select(index);
+                // signalTransfer() 호출
+                signalTransfer();
             });
+            timeline.getKeyFrames().add(keyFrame);
         }
-        else {
-            RESPONSE_LATENCY = time;
-            signalList.getItems().forEach(signal -> {
-                String signalProtocol = SignalMap_HEX.get(signal);
-                signalList.getSelectionModel().select(signal);
-                String transferProtocol = makePerfectProtocolHEX(signalProtocol);
-                hexMsgTransceiver.sendMessages(transferProtocol);
-                try {
-                    Thread.sleep(time * 1000);
-                } catch (InterruptedException e) {
-                    e.printStackTrace();
-                }
-            });
-        }
-        RESPONSE_LATENCY = originalTime;
+
+        // 작업이 끝나면 원래의 대기 시간을 복구
+        timeline.setOnFinished(event -> {
+            RESPONSE_LATENCY = originalTime;
+            autoTransfer.setText("자동 전송"); // 모든 작업이 끝나면 버튼 텍스트를 원래대로 변경
+            timeline = null; // 타임라인 초기화
+        });
+
+        autoTransfer.setText("해제"); // 자동 전송 시작 시 버튼 텍스트 변경
+        timeline.play(); // 타임라인 시작
     }
 
     @FXML
