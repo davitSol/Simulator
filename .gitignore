@@ -34,6 +34,13 @@ bin/
 /dist/
 /nbdist/
 /.nb-gradle/
+/target/**
+/jre/**
+/javafx/**
+*.txt
+.idea/**
+
+Font/**
 
 ### VS Code ###
 .vscode/

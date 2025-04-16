@@ -1,15 +1,23 @@
-module dbps.dbps {
-    requires javafx.controls;
-    requires javafx.fxml;
+module DBPS.main {
+    requires com.fasterxml.jackson.databind;
     requires com.fazecast.jSerialComm;
-    requires org.slf4j;
-    requires static lombok;
-    requires jdk.jshell;
+    requires java.datatransfer;
+    requires javafx.base;
+    requires javafx.controls;
     requires java.desktop;
-    requires com.sun.jna;
+    requires javafx.fxml;
+    requires javafx.graphics;
+    requires static lombok;
+    requires org.fxmisc.richtext;
+    requires com.hivemq.client.mqtt;
+    requires org.json;
 
-    opens dbps.dbps to javafx.fxml;
-    opens dbps.dbps.controller to javafx.fxml;
+    // ✅ 명시적으로 패키지 exports
     exports dbps.dbps;
     exports dbps.dbps.controller;
+    exports dbps.dbps.service;
+    exports dbps.dbps.service.connectManager;
+
+    // ✅ JavaFX FXML에서 Controller 로딩을 허용
+    opens dbps.dbps.controller to javafx.fxml;
 }

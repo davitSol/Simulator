@@ -1,70 +1,142 @@
 plugins {
-  id 'java'
-  id 'application'
-  id 'org.javamodularity.moduleplugin' version '1.8.12'
-  id 'org.openjfx.javafxplugin' version '0.0.13'
-  id 'org.beryx.jlink' version '2.25.0'
+    id 'java'
+    // run 태스크와 jpackage에 필요한 application 플러그인
+    id 'application'
+    // 모듈 관련 보조 플러그인
+    id 'org.javamodularity.moduleplugin' version '1.8.12'
+    // jlink / jpackage 플러그인
+    id 'org.beryx.jlink' version '3.1.1'
 }
 
-group 'DBPS'
-version '1.0.0'
+group = 'dbps'
+version = '1.0.0'
 
 repositories {
-  mavenCentral()
+    mavenCentral()
 }
 
-ext {
-  junitVersion = '5.10.0'
+
+
+sourceSets {
+    main {
+        resources {
+            srcDirs = ['src/main/resources']
+        }
+    }
 }
 
-sourceCompatibility = '17'
-targetCompatibility = '17'
-
-tasks.withType(JavaCompile) {
-  options.encoding = 'UTF-8'
+java {
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
+    modularity.inferModulePath = true // 자동 모듈 감지
 }
 
+// -----------------------------------
+// application 플러그인 설정
+// -----------------------------------
 application {
-  mainModule = 'dbps.dbps'
-  mainClass = 'dbps.dbps.HelloApplication'
+    // module-info.java에 선언된 모듈명과 동일해야 합니다.
+    mainModule = 'DBPS.main'
+    mainClass = 'dbps.dbps.Simulator'
 }
 
-javafx {
-  version = '17.0.6'
-  modules = ['javafx.controls', 'javafx.fxml']
-}
-
+// -----------------------------------
+// 의존성 설정
+// -----------------------------------
+def jfxVer = '17.0.14'
 dependencies {
-  implementation 'org.rxtx:rxtx:2.1.7'
-  implementation group: 'net.java.dev.jna', name: 'jna', version: '5.14.0'
+    // JavaFX (Windows 64비트)
+    implementation "org.openjfx:javafx-base:${jfxVer}:win"
+    implementation "org.openjfx:javafx-graphics:${jfxVer}:win"
+    implementation "org.openjfx:javafx-controls:${jfxVer}:win"
+    implementation "org.openjfx:javafx-fxml:${jfxVer}:win"
 
-  //serialPORT
-  implementation group: 'com.fazecast', name: 'jSerialComm', version: '2.11.0'
-  //lombok
-  implementation 'org.projectlombok:lombok:1.18.34'
-  compileOnly group: 'org.projectlombok', name: 'lombok', version: '1.18.34'
-  annotationProcessor 'org.projectlombok:lombok:1.18.34'
+    // RichTextFX
+    implementation 'org.fxmisc.richtext:richtextfx:0.11.3'
 
-  //slf4j
-  implementation group: 'org.slf4j', name: 'slf4j-api', version: '2.0.16'
-  implementation group: 'org.slf4j', name: 'slf4j-simple', version: '2.0.16'
+    // Jackson
+    implementation 'com.fasterxml.jackson.core:jackson-databind:2.15.2'
 
+    // jSerialComm
+    implementation 'com.fazecast:jSerialComm:2.11.0'
 
-  testImplementation("org.junit.jupiter:junit-jupiter-api:${junitVersion}")
-  testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:${junitVersion}")
+    implementation 'org.json:json:20250107'
+
+    // Lombok
+    compileOnly 'org.projectlombok:lombok:1.18.36'
+    annotationProcessor 'org.projectlombok:lombok:1.18.36'
+
+    // Paho MQTT
+    implementation 'com.hivemq:hivemq-mqtt-client:1.3.5'
+    implementation 'io.projectreactor.tools:blockhound:1.0.6.RELEASE'
 }
 
-test {
-useJUnitPlatform()}
+// UTF-8 컴파일 옵션
+tasks.withType(JavaCompile) {
+    options.encoding = 'UTF-8'
+}
+
+// ---------------------------------------------------------------------
+// Paho MQTT 라이브러리의 모듈 이름 문제 해결
+// (자동 모듈 이름이 끝에 숫자를 포함하는 문제를 피하기 위해 재정의)
+// ---------------------------------------------------------------------
+
+// -----------------------------------
+// run 태스크를 모듈 방식으로 재정의
+// -----------------------------------
+tasks.named("run", JavaExec).configure {
+    // (1) Gradle 기본 classpath 제거 -> 모듈 패스만 사용
+    classpath = files()
+
+    // (2) 빌드된 클래스 + 런타임 의존성 JAR 경로 설정
+    def mainOutput = sourceSets.main.output.classesDirs.asPath
+    def runtimeDeps = configurations.runtimeClasspath.asPath
+    def modulePath = mainOutput + File.pathSeparator + runtimeDeps
+
+    // (3) jvmArgs로 모듈 실행 옵션 지정
+    jvmArgs = [
+            "--module-path", modulePath,
+            "--add-modules", "ALL-MODULE-PATH",
+            // --module <모듈명>/<메인클래스(패키지포함)>
+            "--module", "DBPS.main/dbps.dbps.Simulator"
+    ]
+
+    // "No main class specified" 방지용
+    mainClass.set("dbps.dbps.Simulator")
+}
 
 jlink {
-  imageZip = project.file("${buildDir}/distributions/app-${javafx.platform.classifier}.zip")
-  options = ['--strip-debug', '--compress', '2', '--no-header-files', '--no-man-pages']
-  launcher {
-    name = 'app'
-  }
+    options = [
+            '--strip-debug',
+            '--compress', '2',
+            '--no-header-files',
+            '--no-man-pages'
+    ]
+    mergedModule {
+        enabled = false
+    }
+    addExtraDependencies("javafx")
+    addExtraDependencies("automatic")
+
+    launcher {
+        name = 'dbProtocolSimulator'
+    }
+
+    jpackage {
+        imageName = 'dbProtocolSimulator'
+        installerName = 'dbProtocolSimulator'
+        installerType = 'exe'
+        icon = 'src/main/resources/icon-removebg.ico'
+        installerOptions = [
+                '--win-menu',
+                '--win-shortcut'
+        ]
+        jvmArgs = [
+                '--enable-preview',
+        ]
+    }
 }
 
-jlinkZip {
-  group = 'distribution'
+tasks.named("prepareMergedJarsDir") {
+    doNotTrackState("Disabling state tracking due to non-regular files in merged jars")
 }
