@@ -359,18 +359,32 @@ public class SerialPortManager {
                         }
 
                         String result = bytesToHex(buffer, totalBytesRead);
+                        System.out.println("result = " + result);
 
                         if (result.contains("54 58 28")) {
+                            System.out.println(222);
                             result = new String(buffer, 0, totalBytesRead, Charset.forName("MS949"));
                             int tmp = extractNumberAfterTXBeforeByteHex(result);
                             if (tmp > 0 && 14 + String.valueOf(tmp).length() + result.indexOf("TX(") + tmp <= buffer.length) {
-                                result = new String(buffer, 15 + String.valueOf(tmp).length() + result.indexOf("54 58 28"), tmp * 3, Charset.forName("MS949"));
+                                result = new String(buffer, Charset.forName("MS949"));
+                                int txIndex = result.indexOf("TX(");
+                                if (txIndex != -1) {
+                                    // "10 02" 이후부터 "10 03"까지 탐색
+                                    int start = result.indexOf("10 02", txIndex);
+                                    int end = result.indexOf("10 03", start);
+
+                                    if (start != -1 && end != -1) {
+                                        end += "10 03".length(); // "10 03"까지 포함
+                                        result = result.substring(start, end);
+                                        System.out.println("extracted = " + result);
+                                    }}
+                                result = result.toUpperCase();
                             } else {
                                 throw new IllegalArgumentException("유효하지 않은 offset 또는 tmp 값입니다.");
                             }
                         }
                         if (result.contains("52 58 28")) {
-
+                            System.out.println(111);
                             result = new String(buffer, 0, totalBytesRead, Charset.forName("MS949"));
 
                             String startMarker = "10 02"; // "10 02"
@@ -380,6 +394,7 @@ public class SerialPortManager {
 
                             result = result.substring(startIndex, endIndex + endMarker.length());
                             result = result.toUpperCase();
+                            System.out.println("result1 = " + result);
                         }
                         logService.updateInfoLog(bundle.getString("receivedMsg") + result);
                         return result;

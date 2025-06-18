@@ -29,12 +29,15 @@ import javafx.scene.text.Text;
 import javafx.scene.text.TextFlow;
 import javafx.util.Duration;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.text.MessageFormat;
 import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import static dbps.dbps.Constants.*;
 
@@ -456,6 +459,24 @@ public class HEXMessageController {
             );
         }
         charCodes.setValue(new ComboItem(configService.getProperty("charCode"+getMsgNum()), bundle.getString(configService.getProperty("charCode"+getMsgNum()))));
+
+        effectSpeed.getItems().clear();
+        if (hexRadioBtn.isSelected()){
+            effectSpeed.getItems().add(new ComboItem("slowest", bundle.getString("slowest")));
+            for (int i = 5; i <= 250; i += 5) {
+                effectSpeed.getItems().add(new ComboItem(String.valueOf(i), String.valueOf(i)));
+            }
+            effectSpeed.getItems().add(new ComboItem("fastest", "255(가장빠름)"));
+        }
+        else {
+            effectSpeed.getItems().add(new ComboItem("slowest", bundle.getString("slowest")));
+            for (int i = 5; i <= 95; i += 5) {
+                effectSpeed.getItems().add(new ComboItem(String.valueOf(i), String.valueOf(i)));
+            }
+            effectSpeed.getItems().add(new ComboItem("fastest", bundle.getString("fastest")));
+        }
+
+        effectSpeed.setValue(new ComboItem("30", "30"));
     }
 
     private void setUI() {
@@ -547,12 +568,21 @@ public class HEXMessageController {
                 new ComboItem("3DEffect", bundle.getString("3DEffect"))
         );
         selectEffect(effectOut.getValue().displayText(), outDirection);
-
-        effectSpeed.getItems().add(new ComboItem("slowest", bundle.getString("slowest")));
-        for (int i = 5; i <= 95; i += 5) {
-            effectSpeed.getItems().add(new ComboItem(String.valueOf(i), String.valueOf(i)));
+        effectSpeed.getItems().clear();
+        if (hexRadioBtn.isSelected()){
+            effectSpeed.getItems().add(new ComboItem("slowest", bundle.getString("slowest")));
+            for (int i = 5; i <= 255; i += 5) {
+                effectSpeed.getItems().add(new ComboItem(String.valueOf(i), String.valueOf(i)));
+            }
+            effectSpeed.getItems().add(new ComboItem("fastest", "255(가장빠름)"));
         }
-        effectSpeed.getItems().add(new ComboItem("fastest", bundle.getString("fastest")));
+        else {
+            effectSpeed.getItems().add(new ComboItem("slowest", bundle.getString("slowest")));
+            for (int i = 5; i <= 95; i += 5) {
+                effectSpeed.getItems().add(new ComboItem(String.valueOf(i), String.valueOf(i)));
+            }
+            effectSpeed.getItems().add(new ComboItem("fastest", bundle.getString("fastest")));
+        }
 // 초 단위
         effectTime.getItems().add(new ComboItem("0sec", "0" + bundle.getString("sec")));
         effectTime.getItems().add(new ComboItem("1sec", "1" + bundle.getString("sec")));
@@ -762,6 +792,8 @@ public class HEXMessageController {
             String bgColorValue = bgColor.getText();
             String text = sendMsg.getText();
 
+
+
             StringBuilder msg = new StringBuilder("10 02 ");
 
 
@@ -776,9 +808,38 @@ public class HEXMessageController {
             //msg 길이
             byte[] textBytes;
             try {
-                if (charCodesValue.equals(bundle.getString("CombinationType")))
-                    textBytes = text.getBytes("MS949");
-                else textBytes = text.getBytes(StandardCharsets.UTF_16BE);
+                ByteArrayOutputStream byteOut = new ByteArrayOutputStream();
+                Pattern pattern = Pattern.compile("\\^\\[([0-9A-Fa-f;]+)\\^\\]");
+                Matcher matcher = pattern.matcher(text);
+
+                int lastEnd = 0;
+
+                while (matcher.find()) {
+                    // 일반 문자 영역 → 인코딩해서 추가
+                    String normal = text.substring(lastEnd, matcher.start());
+                    byte[] encoded = charCodesValue.equals(bundle.getString("CombinationType"))
+                            ? normal.getBytes("MS949")
+                            : normal.getBytes(StandardCharsets.UTF_16BE);
+                    byteOut.write(encoded);
+
+                    // 패턴 안의 값들을 직접 바이트로 삽입
+                    String[] hexBytes = matcher.group(1).split(";");
+                    for (String hex : hexBytes) {
+                        byteOut.write(Integer.parseInt(hex, 16));
+                    }
+
+                    lastEnd = matcher.end();
+                }
+
+// 마지막 남은 일반 문자 처리
+                String remaining = text.substring(lastEnd);
+                byte[] encoded = charCodesValue.equals(bundle.getString("CombinationType"))
+                        ? remaining.getBytes("MS949")
+                        : remaining.getBytes(StandardCharsets.UTF_16BE);
+                byteOut.write(encoded);
+
+// 결과로 대체
+                textBytes = byteOut.toByteArray();
             } catch (UnsupportedEncodingException e) {
                 throw new RuntimeException(e);
             }
@@ -850,7 +911,7 @@ public class HEXMessageController {
             msg.append(bgImgValue.equals("notUsed") ? "00 " : String.format("%02d ", Integer.parseInt(bgImgValue)));
 
             //글자
-            for (int i = 0; i < text.length(); i++) {
+            for (int i = 0; i < textBytes.length; i++) {
                 String tmp = "";
                 if (bgColorValue.length() > i) {
                     tmp += String.valueOf(bgColorValue.charAt(i));
@@ -880,9 +941,9 @@ public class HEXMessageController {
                 String resultHex;
 
                 resultHex = String.format("%02X ", tmpValue + add);
-                if (charCodes.getValue().displayText().equals(bundle.getString("UTF16")) || String.valueOf(text.charAt(i)).getBytes(Charset.forName("MS949")).length != 1) {
-                    resultHex += String.format("%02X ", 0);
-                }
+//                if (charCodes.getValue().displayText().equals(bundle.getString("UTF16")) || String.valueOf(text.charAt(i)).getBytes(Charset.forName("MS949")).length != 1) {
+//                    resultHex += String.format("%02X ", 0);
+//                }
 
                 msg.append(resultHex);
             }
