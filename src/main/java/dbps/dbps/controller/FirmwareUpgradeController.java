@@ -165,9 +165,11 @@ public class FirmwareUpgradeController {
         });
         cancelButton.setOnAction(e -> {
             if (firmwareUploadTask != null) {
+                cancel = true;
                 firmwareUploadTask.cancel();
                 progressBar.setProgress(0);
                 closeWindowAfterDelay(progressStage, 1000);
+                cancel = false;
             }
         });
         progressLabel.setStyle(
@@ -237,7 +239,7 @@ public class FirmwareUpgradeController {
         fileName = fileName.substring(fileName.lastIndexOf("\\") + 1);
         if (fileName.contains("502")) {
             firmwareFileInformation.setText(fileName);
-        } else if (fileName.contains("400")) {
+        } else if (fileName.contains("400")||fileName.contains("402")) {
             int startOffset = 0x50;   // 읽기 시작 위치
             int endOffset   = 0x6B;   // 읽기 끝 위치
             int length      = endOffset - startOffset + 1;
@@ -350,16 +352,6 @@ public class FirmwareUpgradeController {
         firmwareUploadTask.setOnRunning(e -> {
             progressLabel.setText("Uploading Firmware...");
             progressBar.setProgress(-1); // 애니메이션 상태
-        });
-
-        cancelButton.setOnAction(e -> {
-            if (firmwareUploadTask != null) {
-                cancel = true;
-                firmwareUploadTask.cancel();
-                progressLabel.setText("Firmware upload Canceled!");
-                closeWindowAfterDelay(progressStage, 2000); // 2초 후 창 닫기
-                cancel = false;
-            }
         });
 
         firmwareUploadTask.setOnSucceeded(e -> {

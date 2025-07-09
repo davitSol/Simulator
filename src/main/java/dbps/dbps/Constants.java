@@ -24,7 +24,6 @@ import java.nio.charset.StandardCharsets;
 @Setter
 public class Constants {
     public static boolean cancel = false;
-
     public static String CONNECT_TYPE = "none";
     ConfigService configService;
 
@@ -210,7 +209,7 @@ public class Constants {
 
 
     public static String convertRS485AddrASCii(){
-        String[] arr = new String[]{"0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V"};
+        String[] arr = new String[]{"0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "A", "B", "C", "D", "E", "F", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "1A", "1B", "1C", "1D", "1E", "1F"};
 
         return arr[RS485_ADDR_NUM];
     }
